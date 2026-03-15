@@ -22,42 +22,65 @@ export interface NearbyStore {
   lng: number;
 }
 
+// Places API (New) type -> our category mapping
+const TYPE_TO_CATEGORY: Record<string, StoreCategory> = {
+  grocery_store: "grocery",
+  supermarket: "grocery",
+  gas_station: "gas",
+  pharmacy: "pharmacy",
+  drugstore: "pharmacy",
+  restaurant: "restaurant",
+  cafe: "restaurant",
+  coffee_shop: "restaurant",
+  bar: "restaurant",
+  fast_food_restaurant: "restaurant",
+  sandwich_shop: "restaurant",
+  pizza_restaurant: "restaurant",
+  gym: "gym",
+  fitness_center: "gym",
+  sports_club: "gym",
+  yoga_studio: "gym",
+  convenience_store: "convenience",
+  clothing_store: "retail",
+  shoe_store: "retail",
+  electronics_store: "retail",
+  shopping_mall: "retail",
+  home_goods_store: "retail",
+  furniture_store: "retail",
+  hardware_store: "retail",
+  book_store: "retail",
+  department_store: "retail",
+  pet_store: "retail",
+};
+
 const CATEGORY_KEYWORDS: Record<StoreCategory, string[]> = {
-  grocery: ["grocery", "supermarket", "food", "market", "whole foods", "trader joe", "safeway", "kroger", "walmart", "costco", "aldi", "publix"],
-  gas: ["gas", "fuel", "shell", "chevron", "bp", "exxon", "mobil", "76", "arco", "station"],
-  pharmacy: ["pharmacy", "drug", "cvs", "walgreens", "rite aid", "duane reade", "health"],
-  restaurant: ["restaurant", "cafe", "coffee", "pizza", "burger", "sushi", "diner", "grill", "bar", "bistro", "starbucks", "mcdonald", "subway", "chipotle"],
+  grocery: ["grocery", "supermarket", "food", "market", "whole foods", "trader joe", "safeway", "kroger", "walmart", "costco", "aldi", "publix", "sprouts"],
+  gas: ["gas", "fuel", "shell", "chevron", "bp", "exxon", "mobil", "76", "arco", "station", "petro"],
+  pharmacy: ["pharmacy", "drug", "cvs", "walgreens", "rite aid", "duane reade"],
+  restaurant: ["restaurant", "cafe", "coffee", "pizza", "burger", "sushi", "diner", "grill", "bar", "bistro", "starbucks", "mcdonald", "subway", "chipotle", "taco", "kitchen"],
   retail: ["store", "shop", "mall", "outlet", "boutique", "clothing", "electronics", "target", "best buy", "apple", "home depot", "lowe"],
   gym: ["gym", "fitness", "sport", "workout", "crossfit", "yoga", "pilates", "planet fitness", "24 hour"],
-  convenience: ["7-eleven", "convenience", "mini mart", "corner store", "circle k", "wawa"],
+  convenience: ["7-eleven", "convenience", "mini mart", "corner store", "circle k", "wawa", "speedway"],
   other: [],
 };
 
 function detectCategory(types: string[], name: string): StoreCategory {
-  const nameLower = name.toLowerCase();
+  // Check types first using Places API (New) type names
+  for (const type of types) {
+    if (type in TYPE_TO_CATEGORY) {
+      return TYPE_TO_CATEGORY[type];
+    }
+  }
 
+  // Fall back to name keyword matching
+  const nameLower = name.toLowerCase();
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS) as [StoreCategory, string[]][]) {
     if (keywords.some((kw) => nameLower.includes(kw))) {
       return category;
     }
   }
 
-  if (types.includes("grocery_or_supermarket") || types.includes("supermarket")) return "grocery";
-  if (types.includes("gas_station")) return "gas";
-  if (types.includes("pharmacy")) return "pharmacy";
-  if (types.includes("restaurant") || types.includes("cafe") || types.includes("food")) return "restaurant";
-  if (types.includes("gym") || types.includes("health")) return "gym";
-  if (types.includes("convenience_store")) return "convenience";
-  if (types.includes("store") || types.includes("shopping_mall") || types.includes("clothing_store") || types.includes("electronics_store")) return "retail";
-
   return "other";
-}
-
-function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)} m`;
-  }
-  return `${(meters / 1000).toFixed(1)} km`;
 }
 
 export function useNearbyStores(
@@ -83,35 +106,91 @@ export function useNearbyStores(
       setError(null);
 
       try {
-        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radiusMeters}&type=store&key=${apiKey}`;
-        const response = await fetch(url);
+        // Places API (New) — Nearby Search endpoint
+        const url = "https://places.googleapis.com/v1/places:searchNearby";
+
+        const body = {
+          includedTypes: [
+            "grocery_store",
+            "supermarket",
+            "gas_station",
+            "pharmacy",
+            "drugstore",
+            "restaurant",
+            "cafe",
+            "coffee_shop",
+            "fast_food_restaurant",
+            "convenience_store",
+            "clothing_store",
+            "electronics_store",
+            "shopping_mall",
+            "department_store",
+            "home_goods_store",
+            "hardware_store",
+            "gym",
+            "fitness_center",
+            "book_store",
+            "pet_store",
+          ],
+          maxResultCount: 20,
+          locationRestriction: {
+            circle: {
+              center: { latitude: lat, longitude: lng },
+              radius: radiusMeters,
+            },
+          },
+        };
+
+        const fieldMask = [
+          "places.id",
+          "places.displayName",
+          "places.formattedAddress",
+          "places.location",
+          "places.types",
+          "places.currentOpeningHours",
+          "places.rating",
+        ].join(",");
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": fieldMask,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const msg = (errData as any)?.error?.message || `HTTP ${response.status}`;
+          if (response.status === 403 || response.status === 400) {
+            setError("API key is invalid or Places API (New) is not enabled in Google Cloud Console.");
+          } else {
+            setError(`Failed to fetch stores: ${msg}`);
+          }
+          setLoading(false);
+          return;
+        }
+
         const data = await response.json();
+        const places: any[] = data.places || [];
 
-        if (data.status === "REQUEST_DENIED") {
-          setError("API key is invalid or Places API is not enabled.");
-          setLoading(false);
-          return;
-        }
-
-        if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-          setError(`Failed to fetch stores: ${data.status}`);
-          setLoading(false);
-          return;
-        }
-
-        const results: NearbyStore[] = (data.results || []).map((place: any) => {
-          const placeLat = place.geometry.location.lat;
-          const placeLng = place.geometry.location.lng;
+        const results: NearbyStore[] = places.map((place) => {
+          const placeLat = place.location?.latitude ?? 0;
+          const placeLng = place.location?.longitude ?? 0;
           const distanceMeters = haversineDistance(lat, lng, placeLat, placeLng);
-          const category = detectCategory(place.types || [], place.name);
+          const types: string[] = place.types || [];
+          const name: string = place.displayName?.text || "Unknown Store";
+          const category = detectCategory(types, name);
 
           return {
-            id: place.place_id,
-            name: place.name,
-            address: place.vicinity || "Address unavailable",
+            id: place.id,
+            name,
+            address: place.formattedAddress || "Address unavailable",
             distanceMeters,
             category,
-            isOpen: place.opening_hours?.open_now,
+            isOpen: place.currentOpeningHours?.openNow,
             rating: place.rating,
             lat: placeLat,
             lng: placeLng,
@@ -133,7 +212,12 @@ export function useNearbyStores(
   return { stores, loading, error };
 }
 
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function haversineDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
