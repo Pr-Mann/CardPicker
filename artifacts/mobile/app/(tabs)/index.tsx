@@ -1,10 +1,269 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export default function TabOneScreen() {
+import Colors from "@/constants/colors";
+import { CategoryFilter, FilterOption } from "@/components/CategoryFilter";
+import { SkeletonCard } from "@/components/SkeletonCard";
+import { StoreCard } from "@/components/StoreCard";
+import { NearbyStore, useNearbyStores } from "@/hooks/useNearbyStores";
+
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const C = Colors.light;
+
+  const [locationStatus, setLocationStatus] = useState<
+    "idle" | "requesting" | "granted" | "denied"
+  >("idle");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<FilterOption>("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const { stores, loading, error } = useNearbyStores(
+    coords?.lat ?? null,
+    coords?.lng ?? null,
+    1500
+  );
+
+  useEffect(() => {
+    checkOnboarding();
+  }, []);
+
+  const checkOnboarding = async () => {
+    const done = await AsyncStorage.getItem("onboarding_complete");
+    if (!done) {
+      router.replace("/onboarding");
+      return;
+    }
+    requestLocation();
+  };
+
+  const requestLocation = async () => {
+    setLocationStatus("requesting");
+    try {
+      if (Platform.OS === "web") {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setLocationStatus("granted");
+          },
+          () => setLocationStatus("denied")
+        );
+        return;
+      }
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationStatus("denied");
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setCoords({
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      });
+      setLocationStatus("granted");
+    } catch {
+      setLocationStatus("denied");
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== "web") {
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setCoords({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+        setRefreshKey((k) => k + 1);
+      } catch {}
+    }
+    setRefreshing(false);
+  }, []);
+
+  const filteredStores =
+    selectedFilter === "all"
+      ? stores
+      : stores.filter((s) => s.category === selectedFilter);
+
+  const handleStorePress = (store: NearbyStore) => {
+    router.push({
+      pathname: "/store-detail",
+      params: {
+        id: store.id,
+        name: store.name,
+        address: store.address,
+        distanceMeters: store.distanceMeters.toString(),
+        category: store.category,
+        isOpen: store.isOpen?.toString() ?? "",
+        rating: store.rating?.toString() ?? "",
+        lat: store.lat.toString(),
+        lng: store.lng.toString(),
+      },
+    });
+  };
+
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Replit Agent is building...</Text>
-      <Text style={styles.text}>Your app will appear here once it's ready.</Text>
+    <View style={[styles.container, { backgroundColor: C.background }]}>
+      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+        <LinearGradient
+          colors={[C.backgroundHeader, C.background + "00"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={[styles.headerTitle, { color: C.text }]}>Nearby Stores</Text>
+            {coords && (
+              <View style={styles.locationRow}>
+                <Ionicons name="location" size={12} color={C.tint} />
+                <Text style={[styles.locationLabel, { color: C.textSecondary }]}>
+                  Using your current location
+                </Text>
+              </View>
+            )}
+          </View>
+          <Pressable
+            style={[styles.refreshButton, { backgroundColor: C.tintLight }]}
+            onPress={onRefresh}
+          >
+            <Ionicons name="refresh" size={18} color={C.tint} />
+          </Pressable>
+        </View>
+
+        {locationStatus === "granted" && (
+          <CategoryFilter selected={selectedFilter} onSelect={setSelectedFilter} />
+        )}
+      </View>
+
+      {locationStatus === "idle" || locationStatus === "requesting" ? (
+        <View style={styles.centeredState}>
+          <View style={[styles.stateIcon, { backgroundColor: C.tintLight }]}>
+            <Ionicons name="location" size={40} color={C.tint} />
+          </View>
+          <Text style={[styles.stateTitle, { color: C.text }]}>Finding Your Location</Text>
+          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
+            Please allow location access to discover nearby stores.
+          </Text>
+        </View>
+      ) : locationStatus === "denied" ? (
+        <View style={styles.centeredState}>
+          <View style={[styles.stateIcon, { backgroundColor: "#FFF0F0" }]}>
+            <Ionicons name="location-outline" size={40} color={C.error} />
+          </View>
+          <Text style={[styles.stateTitle, { color: C.text }]}>Location Access Required</Text>
+          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
+            NearbyStores needs your location to find stores near you. Please enable location access in your settings.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.retryButton,
+              { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
+            ]}
+            onPress={requestLocation}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </Pressable>
+        </View>
+      ) : error ? (
+        <View style={styles.centeredState}>
+          <View style={[styles.stateIcon, { backgroundColor: "#FFF8E8" }]}>
+            <Ionicons name="warning-outline" size={40} color={C.warning} />
+          </View>
+          <Text style={[styles.stateTitle, { color: C.text }]}>Something Went Wrong</Text>
+          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>{error}</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.retryButton,
+              { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
+            ]}
+            onPress={onRefresh}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : loading ? (
+        <FlatList
+          data={[1, 2, 3, 4, 5, 6]}
+          keyExtractor={(item) => item.toString()}
+          renderItem={() => <SkeletonCard />}
+          contentContainerStyle={styles.list}
+          scrollEnabled={false}
+        />
+      ) : filteredStores.length === 0 ? (
+        <View style={styles.centeredState}>
+          <View style={[styles.stateIcon, { backgroundColor: C.tintLight }]}>
+            <Ionicons name="search-outline" size={40} color={C.tint} />
+          </View>
+          <Text style={[styles.stateTitle, { color: C.text }]}>No Stores Found</Text>
+          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
+            {selectedFilter !== "all"
+              ? "No stores of this category nearby. Try a different filter."
+              : "No stores found within 1.5 km. Pull to refresh or try again."}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredStores}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <Animated.View entering={FadeInDown.delay(index * 40).duration(300)}>
+              <StoreCard store={item} onPress={handleStorePress} />
+            </Animated.View>
+          )}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100 },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={C.tint}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {locationStatus === "granted" && !loading && stores.length > 0 && (
+        <View style={[styles.countBadge, { bottom: (Platform.OS === "web" ? 34 + 84 : insets.bottom + 84) + 12 }]}>
+          <View style={[styles.countPill, { backgroundColor: C.backgroundCard }]}>
+            <Ionicons name="business" size={13} color={C.tint} />
+            <Text style={[styles.countText, { color: C.textSecondary }]}>
+              {filteredStores.length} store{filteredStores.length !== 1 ? "s" : ""} nearby
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -12,17 +271,101 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  header: {
+    zIndex: 10,
+  },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.8,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+  },
+  refreshButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
+  list: {
+    paddingTop: 8,
   },
-  text: {
-    fontSize: 16,
+  centeredState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+    gap: 16,
+  },
+  stateIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  stateTitle: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
     textAlign: "center",
-    paddingHorizontal: 20,
+    letterSpacing: -0.4,
+  },
+  stateSubtitle: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  retryButton: {
+    paddingVertical: 13,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+  },
+  countBadge: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  countPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  countText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
   },
 });

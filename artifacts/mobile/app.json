@@ -6,17 +6,28 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F5F7FA"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nearbystores.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "NearbyStores uses your location to find stores near you.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "NearbyStores uses your location to find stores near you."
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.nearbystores.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -28,7 +39,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "NearbyStores uses your location to find stores near you."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
