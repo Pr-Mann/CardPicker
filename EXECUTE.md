@@ -54,14 +54,14 @@ The app is entirely client-side. There is no custom backend server required for 
 
 ### Naming Conventions
 
-| Item | Convention | Example |
-|------|-----------|---------|
-| Components | PascalCase | `StoreCard.tsx`, `SearchWidget.tsx` |
-| Hooks | camelCase with `use` prefix | `useNearbyStores.ts` |
-| Constants | camelCase default export | `colors.ts` |
-| Screens | PascalCase file, default export | `app/(tabs)/index.tsx` |
-| Types/Interfaces | PascalCase | `NearbyStore`, `StoreCategory` |
-| Style objects | camelCase keys | `styles.cardTopRow` |
+| Item             | Convention                      | Example                             |
+| ---------------- | ------------------------------- | ----------------------------------- |
+| Components       | PascalCase                      | `StoreCard.tsx`, `SearchWidget.tsx` |
+| Hooks            | camelCase with `use` prefix     | `useNearbyStores.ts`                |
+| Constants        | camelCase default export        | `colors.ts`                         |
+| Screens          | PascalCase file, default export | `app/(tabs)/index.tsx`              |
+| Types/Interfaces | PascalCase                      | `NearbyStore`, `StoreCategory`      |
+| Style objects    | camelCase keys                  | `styles.cardTopRow`                 |
 
 ### Error Handling Strategy
 
@@ -115,25 +115,25 @@ The app is entirely client-side. There is no custom backend server required for 
 
 ## 3. Technology Stack
 
-| Technology | Version | Why Chosen |
-|-----------|---------|-----------|
-| **Expo** | ~54.0.27 | Unified iOS/Android/Web build toolchain; Expo Go for instant device testing |
-| **Expo Router** | ~6.0.17 | File-based routing (like Next.js) — zero boilerplate navigation setup |
-| **React Native** | 0.81.5 | Cross-platform native UI with JS/TS |
-| **TypeScript** | ~5.9.2 | Type safety across the entire codebase |
-| **React Native Reanimated** | ~4.1.1 | 60fps animations on the UI thread via worklets |
-| **expo-location** | ~19.0.8 | Native GPS permission and location API |
-| **expo-linear-gradient** | ~15.0.8 | Fintech-grade gradient cards and headers |
-| **expo-haptics** | ~15.0.8 | Tactile feedback for press interactions |
-| **expo-blur** | ~15.0.8 | BlurView for iOS tab bar background |
-| **expo-glass-effect** | ~0.1.4 | Liquid glass tab bar on iOS 26+ |
-| **@tanstack/react-query** | catalog | Server state management (ready for API calls) |
-| **@react-native-async-storage/async-storage** | 2.2.0 | Persist onboarding completion flag locally |
-| **@expo/vector-icons** | ^15.0.3 | Ionicons, MaterialCommunityIcons, Feather |
-| **@expo-google-fonts/inter** | ^0.4.0 | Inter font family — clean, legible, modern |
-| **react-native-safe-area-context** | ~5.6.0 | Correct insets for notch, Dynamic Island, Android status bar |
-| **pnpm** | 10.x | Fast, disk-efficient monorepo package manager |
-| **Google Places API (New)** | v1 | Real-time nearby store data with rich place types |
+| Technology                                    | Version  | Why Chosen                                                                  |
+| --------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| **Expo**                                      | ~54.0.27 | Unified iOS/Android/Web build toolchain; Expo Go for instant device testing |
+| **Expo Router**                               | ~6.0.17  | File-based routing (like Next.js) — zero boilerplate navigation setup       |
+| **React Native**                              | 0.81.5   | Cross-platform native UI with JS/TS                                         |
+| **TypeScript**                                | ~5.9.2   | Type safety across the entire codebase                                      |
+| **React Native Reanimated**                   | ~4.1.1   | 60fps animations on the UI thread via worklets                              |
+| **expo-location**                             | ~19.0.8  | Native GPS permission and location API                                      |
+| **expo-linear-gradient**                      | ~15.0.8  | Fintech-grade gradient cards and headers                                    |
+| **expo-haptics**                              | ~15.0.8  | Tactile feedback for press interactions                                     |
+| **expo-blur**                                 | ~15.0.8  | BlurView for iOS tab bar background                                         |
+| **expo-glass-effect**                         | ~0.1.4   | Liquid glass tab bar on iOS 26+                                             |
+| **@tanstack/react-query**                     | catalog  | Server state management (ready for API calls)                               |
+| **@react-native-async-storage/async-storage** | 2.2.0    | Persist onboarding completion flag locally                                  |
+| **@expo/vector-icons**                        | ^15.0.3  | Ionicons, MaterialCommunityIcons, Feather                                   |
+| **@expo-google-fonts/inter**                  | ^0.4.0   | Inter font family — clean, legible, modern                                  |
+| **react-native-safe-area-context**            | ~5.6.0   | Correct insets for notch, Dynamic Island, Android status bar                |
+| **pnpm**                                      | 10.x     | Fast, disk-efficient monorepo package manager                               |
+| **Google Places API (New)**                   | v1       | Real-time nearby store data with rich place types                           |
 
 ---
 
@@ -308,6 +308,7 @@ EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_api_key_here
 ```
 
 **Google Cloud Console Setup:**
+
 1. Go to https://console.cloud.google.com
 2. Create or select a project
 3. Navigate to **APIs & Services → Library**
@@ -353,6 +354,7 @@ Server starts on the port defined by the `PORT` environment variable (auto-assig
 ### Run All Services (Replit)
 
 In Replit, workflows start automatically. Use the workflow panel to start/restart:
+
 - `artifacts/mobile: expo` — Expo dev server
 - `artifacts/api-server: API Server` — Express backend
 
@@ -400,6 +402,7 @@ eas build --platform ios
 ```
 
 **Before submitting to stores:**
+
 - Update `version` in `app.json` following semantic versioning
 - Set production `bundleIdentifier` (iOS) and `package` (Android) in `app.json` — never change these after first publish
 - Ensure `GOOGLE_MAPS_API_KEY` is configured in EAS Secrets (`eas secret:create`)
@@ -409,6 +412,7 @@ eas build --platform ios
 ### API Server
 
 The Express API server deploys via Replit's deployment pipeline:
+
 - Run `pnpm --filter @workspace/api-server run build` to produce `dist/index.cjs`
 - The production build is a self-contained CJS bundle
 - Database migrations run automatically via the post-merge script
@@ -416,35 +420,8 @@ The Express API server deploys via Replit's deployment pipeline:
 ### App Store Privacy Requirements
 
 The app declares:
+
 - `NSLocationWhenInUseUsageDescription` (iOS `Info.plist`) — already set in `app.json`
 - `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION` (Android manifest) — already set in `app.json`
 - No background location usage
 - Data Safety form (Google Play): location data collected, not shared, not stored
-
----
-
-## 10. Future Improvements
-
-### Near-Term
-
-- [ ] **Card Recommendations Engine** — Connect the credit card placeholder widget to a real recommendations API. Map store categories to optimal credit cards (e.g., "5% cashback on groceries → recommend Chase Freedom Flex").
-- [ ] **Map View Tab** — Add a second tab with `react-native-maps` showing store pins on an interactive map.
-- [ ] **Radius Control** — Let users adjust the search radius (500m, 1km, 2km, 5km) via a slider.
-- [ ] **Favourites** — Allow users to save stores with `AsyncStorage` persistence.
-- [ ] **Store Hours Detail** — Fetch and display full weekly opening hours via the Places API (New) `currentOpeningHours.weekdayDescriptions` field.
-
-### Medium-Term
-
-- [ ] **Push Notifications** — Notify users when they enter an area with stores matching their saved categories.
-- [ ] **Geofencing** — Background location to trigger recommendations when near a store.
-- [ ] **User Accounts** — Add Replit Auth or Firebase Auth for cross-device favourites sync.
-- [ ] **Dark Mode** — Complete the dark theme in `constants/colors.ts` and wire it to `useColorScheme()`.
-- [ ] **Offline Support** — Cache last-fetched stores in AsyncStorage for offline viewing.
-
-### Scaling Considerations
-
-- [ ] **Backend Proxy for API Key** — Move the Places API call server-side (Express API server) so the API key is never exposed in the client bundle in production.
-- [ ] **Rate Limiting** — Implement debounce on location updates and result caching to reduce Places API calls and cost.
-- [ ] **Analytics** — Integrate Expo's analytics or a privacy-respecting alternative to track feature usage.
-- [ ] **A/B Testing** — Use feature flags to test different card recommendation layouts.
-- [ ] **Internationalisation** — Add `i18n` support for distance units (km vs miles) and locale-aware formatting.
