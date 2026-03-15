@@ -5,6 +5,7 @@ import React, { useRef } from "react";
 import {
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,549 +13,538 @@ import {
 } from "react-native";
 import Animated, {
   FadeIn,
-  FadeOut,
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
 } from "react-native-reanimated";
 
-import Colors from "@/constants/colors";
+import { NearbyStore, formatDistanceLabel } from "@/hooks/useNearbyStores";
+import { StoreCategory } from "@/hooks/useNearbyStores";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-interface SearchWidgetProps {
-  searchQuery: string;
-  onSearchChange: (text: string) => void;
-  onLocationPress: () => void;
-}
+// ── Category icon + color mapping ───────────────────────────────────────────
 
-// ── Credit Card Placeholder ────────────────────────────────────────────────
+const CATEGORY_META: Record<
+  StoreCategory,
+  { icon: string; iconSet: "ionicons" | "mci"; color: string; bg: string }
+> = {
+  grocery: { icon: "storefront-outline", iconSet: "ionicons", color: "#22C55E", bg: "#052E16" },
+  gas:     { icon: "gas-station",        iconSet: "mci",      color: "#F59E0B", bg: "#2D1B00" },
+  pharmacy:{ icon: "medkit-outline",     iconSet: "ionicons", color: "#EF4444", bg: "#2D0A0A" },
+  restaurant:{ icon: "restaurant-outline", iconSet: "ionicons", color: "#F97316", bg: "#2D1000" },
+  retail:  { icon: "bag-handle-outline", iconSet: "ionicons", color: "#8B5CF6", bg: "#1B0840" },
+  gym:     { icon: "barbell-outline",    iconSet: "ionicons", color: "#06B6D4", bg: "#002D33" },
+  convenience:{ icon: "basket-outline", iconSet: "ionicons", color: "#EC4899", bg: "#2D0020" },
+  other:   { icon: "location-outline",  iconSet: "ionicons", color: "#94A3B8", bg: "#1E293B" },
+};
 
-function CreditCardPlaceholder() {
-  const C = Colors.light;
-
+function CategoryIcon({ category, size = 18 }: { category: StoreCategory; size?: number }) {
+  const meta = CATEGORY_META[category] ?? CATEGORY_META.other;
+  const icon = meta.iconSet === "mci" ? (
+    <MaterialCommunityIcons name={meta.icon as any} size={size} color={meta.color} />
+  ) : (
+    <Ionicons name={meta.icon as any} size={size} color={meta.color} />
+  );
   return (
-    <View style={cardStyles.wrapper}>
-      <Text style={[cardStyles.sectionLabel, { color: C.textSecondary }]}>
-        RECOMMENDED FOR YOU
-      </Text>
-
-      {/* Phone mockup frame */}
-      <View style={cardStyles.phoneMockup}>
-        {/* Phone notch / speaker */}
-        <View style={cardStyles.phoneTop}>
-          <View style={cardStyles.phoneSpeaker} />
-        </View>
-
-        {/* Phone screen content */}
-        <View style={cardStyles.phoneScreen}>
-          {/* Credit card inside phone */}
-          <View style={cardStyles.creditCardContainer}>
-            <LinearGradient
-              colors={["#1A1A2E", "#16213E", "#0F3460"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={cardStyles.creditCard}
-            >
-              {/* Top row: chip + recommended badge */}
-              <View style={cardStyles.cardTopRow}>
-                <View style={cardStyles.chip}>
-                  <View style={cardStyles.chipInner} />
-                </View>
-                <View style={cardStyles.recommendedBadge}>
-                  <Ionicons name="star" size={8} color="#FFD700" />
-                  <Text style={cardStyles.recommendedText}>Recommended</Text>
-                </View>
-              </View>
-
-              {/* Card number dots */}
-              <View style={cardStyles.cardNumberRow}>
-                {[0, 1, 2, 3].map((group) => (
-                  <View key={group} style={cardStyles.dotGroup}>
-                    {[0, 1, 2, 3].map((dot) => (
-                      <View key={dot} style={cardStyles.dot} />
-                    ))}
-                  </View>
-                ))}
-              </View>
-
-              {/* Card info row */}
-              <View style={cardStyles.cardInfoRow}>
-                <View style={cardStyles.cardInfoItem}>
-                  <Text style={cardStyles.cardInfoLabel}>CARD NAME</Text>
-                  <View style={cardStyles.cardInfoPlaceholder} />
-                </View>
-                <View style={cardStyles.cardInfoItem}>
-                  <Text style={cardStyles.cardInfoLabel}>CASHBACK</Text>
-                  <View style={[cardStyles.cardInfoPlaceholder, cardStyles.cashbackBadge]}>
-                    <Text style={cardStyles.cashbackText}>5%</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Bottom row: category + logo placeholder */}
-              <View style={cardStyles.cardBottomRow}>
-                <View style={cardStyles.categoryChip}>
-                  <MaterialCommunityIcons name="gas-station" size={9} color="rgba(255,255,255,0.6)" />
-                  <Text style={cardStyles.categoryChipText}>Grocery</Text>
-                </View>
-                <View style={cardStyles.cardLogoPlaceholder}>
-                  <View style={[cardStyles.logoCircle, { backgroundColor: "rgba(255,180,0,0.8)" }]} />
-                  <View style={[cardStyles.logoCircle, { backgroundColor: "rgba(255,80,0,0.6)", marginLeft: -8 }]} />
-                </View>
-              </View>
-            </LinearGradient>
-
-            {/* Glow effect under card */}
-            <View style={cardStyles.cardGlow} />
-          </View>
-
-          {/* App-like UI elements below card inside phone */}
-          <View style={cardStyles.phoneAppUI}>
-            <View style={[cardStyles.uiRow, { backgroundColor: "rgba(26,111,255,0.08)" }]}>
-              <View style={cardStyles.uiIconBox}>
-                <Ionicons name="wallet-outline" size={12} color={C.tint} />
-              </View>
-              <View style={cardStyles.uiTextGroup}>
-                <View style={[cardStyles.uiLine, { width: "60%" }]} />
-                <View style={[cardStyles.uiLine, { width: "40%", height: 6, marginTop: 4 }]} />
-              </View>
-              <View style={cardStyles.uiTag}>
-                <Text style={cardStyles.uiTagText}>Best</Text>
-              </View>
-            </View>
-
-            <View style={[cardStyles.uiRow, { backgroundColor: "rgba(16,185,129,0.08)" }]}>
-              <View style={[cardStyles.uiIconBox, { backgroundColor: "rgba(16,185,129,0.15)" }]}>
-                <Ionicons name="trending-up" size={12} color={Colors.light.grocery} />
-              </View>
-              <View style={cardStyles.uiTextGroup}>
-                <View style={[cardStyles.uiLine, { width: "50%" }]} />
-                <View style={[cardStyles.uiLine, { width: "35%", height: 6, marginTop: 4 }]} />
-              </View>
-              <View style={[cardStyles.uiTag, { backgroundColor: "rgba(16,185,129,0.15)" }]}>
-                <Text style={[cardStyles.uiTagText, { color: Colors.light.grocery }]}>2x</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Phone home indicator */}
-        <View style={cardStyles.phoneBottom}>
-          <View style={cardStyles.homeIndicator} />
-        </View>
-      </View>
-
-      {/* Caption below phone */}
-      <Text style={[cardStyles.caption, { color: C.textTertiary }]}>
-        Card recommendations coming soon
-      </Text>
+    <View style={[iconStyles.box, { backgroundColor: meta.bg, width: size + 16, height: size + 16, borderRadius: (size + 16) / 4 }]}>
+      {icon}
     </View>
   );
 }
 
-// ── Main Widget ────────────────────────────────────────────────────────────
+const iconStyles = StyleSheet.create({
+  box: { alignItems: "center", justifyContent: "center", flexShrink: 0 },
+});
+
+// ── Star Rating ──────────────────────────────────────────────────────────────
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 1, alignItems: "center" }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Ionicons
+          key={i}
+          name={rating >= i ? "star" : rating >= i - 0.5 ? "star-half" : "star-outline"}
+          size={10}
+          color="#F59E0B"
+        />
+      ))}
+    </View>
+  );
+}
+
+// ── Store Row ────────────────────────────────────────────────────────────────
+
+function StoreRow({
+  store,
+  rank,
+  onPress,
+}: {
+  store: NearbyStore;
+  rank: number;
+  onPress?: (store: NearbyStore) => void;
+}) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const categoryLabel =
+    store.category.charAt(0).toUpperCase() + store.category.slice(1);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(rank * 50).duration(220)} style={animStyle}>
+      <AnimatedPressable
+        onPressIn={() => { scale.value = withSpring(0.97, { damping: 20 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20 }); }}
+        onPress={() => { Haptics.selectionAsync(); onPress?.(store); }}
+        style={[
+          rowStyles.row,
+          rank === 0 && rowStyles.rowFirst,
+        ]}
+      >
+        {/* Icon */}
+        <CategoryIcon category={store.category} size={18} />
+
+        {/* Text */}
+        <View style={rowStyles.textCol}>
+          <Text style={rowStyles.name} numberOfLines={1}>{store.name}</Text>
+          <View style={rowStyles.metaRow}>
+            {store.rating != null && (
+              <>
+                <StarRating rating={store.rating} />
+                <Text style={rowStyles.ratingNum}>({store.rating.toFixed(1)})</Text>
+                <Text style={rowStyles.dot}>·</Text>
+              </>
+            )}
+            <Text style={rowStyles.categoryLabel}>{categoryLabel}</Text>
+          </View>
+        </View>
+
+        {/* Distance + open */}
+        <View style={rowStyles.rightCol}>
+          <Text style={rowStyles.distance}>{formatDistanceLabel(store.distanceMeters)}</Text>
+          {store.isOpen === true && (
+            <View style={rowStyles.openBadge}>
+              <Text style={rowStyles.openText}>Open</Text>
+            </View>
+          )}
+        </View>
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(255,255,255,0.07)",
+  },
+  rowFirst: {
+    borderTopWidth: 0,
+    backgroundColor: "rgba(26,111,255,0.10)",
+    borderRadius: 10,
+    marginHorizontal: 4,
+    marginTop: 2,
+    paddingHorizontal: 10,
+  },
+  textCol: {
+    flex: 1,
+    gap: 3,
+  },
+  name: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#F1F5F9",
+    letterSpacing: -0.2,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  ratingNum: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "#94A3B8",
+  },
+  dot: {
+    fontSize: 10,
+    color: "#475569",
+  },
+  categoryLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "#64748B",
+  },
+  rightCol: {
+    alignItems: "flex-end",
+    gap: 4,
+    flexShrink: 0,
+  },
+  distance: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#1A6FFF",
+  },
+  openBadge: {
+    backgroundColor: "rgba(34,197,94,0.15)",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  openText: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    color: "#22C55E",
+  },
+});
+
+// ── Credit Card ──────────────────────────────────────────────────────────────
+
+function CreditCard() {
+  return (
+    <LinearGradient
+      colors={["#1C3A6B", "#0D1F3C", "#0A1628"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={ccStyles.card}
+    >
+      {/* Top row */}
+      <View style={ccStyles.topRow}>
+        {/* Chip */}
+        <View style={ccStyles.chip}>
+          <View style={ccStyles.chipH} />
+          <View style={ccStyles.chipV} />
+        </View>
+        {/* Network logo */}
+        <View style={ccStyles.logoRow}>
+          <View style={[ccStyles.logoCircle, { backgroundColor: "#EB001B", marginRight: -8 }]} />
+          <View style={[ccStyles.logoCircle, { backgroundColor: "#F79E1B", opacity: 0.9 }]} />
+        </View>
+      </View>
+
+      {/* Card number */}
+      <Text style={ccStyles.cardNumber}>4512  8765  4321  0987</Text>
+
+      {/* Bottom row */}
+      <View style={ccStyles.bottomRow}>
+        <View>
+          <Text style={ccStyles.label}>CARD HOLDER</Text>
+          <Text style={ccStyles.value}>JOHN A. DOE</Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={ccStyles.label}>EXP DATE</Text>
+          <Text style={ccStyles.value}>11/27</Text>
+        </View>
+        <Text style={ccStyles.networkName}>VISA</Text>
+      </View>
+    </LinearGradient>
+  );
+}
+
+const ccStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 12,
+    borderRadius: 14,
+    padding: 18,
+    gap: 16,
+    shadowColor: "#1A6FFF",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  chip: {
+    width: 34,
+    height: 26,
+    borderRadius: 5,
+    backgroundColor: "#C9A84C",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipH: {
+    position: "absolute",
+    width: "100%",
+    height: 1,
+    backgroundColor: "#A07830",
+    top: "50%",
+  },
+  chipV: {
+    position: "absolute",
+    width: 1,
+    height: "100%",
+    backgroundColor: "#A07830",
+    left: "50%",
+  },
+  logoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  logoCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  cardNumber: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 17,
+    color: "#E2E8F0",
+    letterSpacing: 2,
+  },
+  bottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  label: {
+    fontSize: 8,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.45)",
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  value: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#E2E8F0",
+    letterSpacing: 0.5,
+  },
+  networkName: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    color: "#E2E8F0",
+    letterSpacing: 3,
+    alignSelf: "flex-end",
+  },
+});
+
+// ── Main Widget ──────────────────────────────────────────────────────────────
+
+export interface SearchWidgetProps {
+  searchQuery: string;
+  onSearchChange: (text: string) => void;
+  onLocationPress: () => void;
+  /** All stores fetched from the hook — widget shows top 5 filtered */
+  stores: NearbyStore[];
+  /** Called when a result row is tapped */
+  onStorePress?: (store: NearbyStore) => void;
+}
 
 export function SearchWidget({
   searchQuery,
   onSearchChange,
   onLocationPress,
+  stores,
+  onStorePress,
 }: SearchWidgetProps) {
-  const C = Colors.light;
   const inputRef = useRef<TextInput>(null);
-  const hasText = searchQuery.length > 0;
 
-  const actionScale = useSharedValue(1);
-  const actionBgProgress = useSharedValue(0);
+  const findScale = useSharedValue(1);
+  const findStyle = useAnimatedStyle(() => ({ transform: [{ scale: findScale.value }] }));
 
-  React.useEffect(() => {
-    actionBgProgress.value = withTiming(hasText ? 1 : 0, { duration: 200 });
-  }, [hasText]);
-
-  const actionAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: actionScale.value }],
-  }));
-
-  const handleActionPressIn = () => {
-    actionScale.value = withSpring(0.88, { damping: 20, stiffness: 300 });
-  };
-
-  const handleActionPressOut = () => {
-    actionScale.value = withSpring(1, { damping: 20, stiffness: 300 });
-  };
-
-  const handleActionPress = () => {
+  const handleFind = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (hasText) {
-      onSearchChange("");
-      inputRef.current?.focus();
-    } else {
-      onLocationPress();
-    }
+    onLocationPress();
+    inputRef.current?.blur();
   };
 
-  const handleClear = () => {
-    onSearchChange("");
-    inputRef.current?.focus();
-  };
+  // Top 5 filtered by search query
+  const displayed = stores
+    .filter((s) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.address.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q)
+      );
+    })
+    .slice(0, 5);
 
   return (
-    <View style={styles.container}>
+    <Animated.View entering={FadeIn.duration(300)} style={widgetStyles.container}>
       {/* ── Search Bar ── */}
-      <View style={[styles.searchBar, { backgroundColor: C.backgroundCard }]}>
-        <Ionicons
-          name="search"
-          size={18}
-          color={hasText ? C.tint : C.textTertiary}
-          style={styles.searchIcon}
-        />
-
-        <TextInput
-          ref={inputRef}
-          style={[styles.input, { color: C.text }]}
-          placeholder="Search stores, categories..."
-          placeholderTextColor={C.textTertiary}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          returnKeyType="search"
-          clearButtonMode="never"
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-
-        {hasText && (
-          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)}>
-            <Pressable style={styles.clearButton} onPress={handleClear}>
-              <View style={[styles.clearDot, { backgroundColor: C.textTertiary }]}>
-                <Ionicons name="close" size={10} color="#fff" />
-              </View>
+      <View style={widgetStyles.searchRow}>
+        <View style={widgetStyles.searchBar}>
+          <Ionicons name="search" size={16} color="#94A3B8" style={{ marginLeft: 12 }} />
+          <TextInput
+            ref={inputRef}
+            style={widgetStyles.input}
+            placeholder="Search stores, services, or locations..."
+            placeholderTextColor="#64748B"
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            returnKeyType="search"
+            clearButtonMode="never"
+            autoCorrect={false}
+            autoCapitalize="none"
+            selectionColor="#1A6FFF"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable
+              onPress={() => { onSearchChange(""); inputRef.current?.focus(); }}
+              style={{ padding: 8 }}
+            >
+              <Ionicons name="close-circle" size={16} color="#475569" />
             </Pressable>
-          </Animated.View>
-        )}
+          )}
+        </View>
 
-        {/* Dynamic action button */}
         <AnimatedPressable
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: hasText ? C.tint : C.tintLight,
-            },
-            actionAnimStyle,
-          ]}
-          onPressIn={handleActionPressIn}
-          onPressOut={handleActionPressOut}
-          onPress={handleActionPress}
+          style={[widgetStyles.findButton, findStyle]}
+          onPressIn={() => { findScale.value = withSpring(0.9, { damping: 20 }); }}
+          onPressOut={() => { findScale.value = withSpring(1, { damping: 20 }); }}
+          onPress={handleFind}
         >
-          <Animated.View key={hasText ? "search-icon" : "location-icon"} entering={FadeIn.duration(180)}>
-            {hasText ? (
-              <Ionicons name="search" size={17} color="#fff" />
-            ) : (
-              <Ionicons name="navigate" size={17} color={C.tint} />
-            )}
-          </Animated.View>
+          <Text style={widgetStyles.findText}>FIND</Text>
         </AnimatedPressable>
       </View>
 
-      {/* ── Credit Card Placeholder ── */}
-      <CreditCardPlaceholder />
-    </View>
+      {/* ── Top 5 Results ── */}
+      <View style={widgetStyles.section}>
+        <View style={widgetStyles.sectionHeader}>
+          <Ionicons name="location" size={12} color="#475569" />
+          <Text style={widgetStyles.sectionLabel}>
+            {searchQuery ? "SEARCH RESULTS" : "TOP 5 RESULTS"}
+          </Text>
+        </View>
+
+        {displayed.length === 0 ? (
+          <View style={widgetStyles.emptyRow}>
+            <Ionicons name="search-outline" size={22} color="#334155" />
+            <Text style={widgetStyles.emptyText}>
+              {searchQuery ? `No results for "${searchQuery}"` : "No nearby stores found"}
+            </Text>
+          </View>
+        ) : (
+          <View>
+            {displayed.map((store, i) => (
+              <StoreRow key={store.id} store={store} rank={i} onPress={onStorePress} />
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Divider */}
+      <View style={widgetStyles.divider} />
+
+      {/* ── Credit Card Information ── */}
+      <View style={widgetStyles.section}>
+        <View style={widgetStyles.sectionHeader}>
+          <MaterialCommunityIcons name="credit-card-outline" size={12} color="#475569" />
+          <Text style={widgetStyles.sectionLabel}>CREDIT CARD INFORMATION</Text>
+        </View>
+        <View style={{ paddingBottom: 14 }}>
+          <CreditCard />
+        </View>
+      </View>
+    </Animated.View>
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
+// ── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const widgetStyles = StyleSheet.create({
   container: {
-    paddingTop: 8,
-    paddingBottom: 4,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    backgroundColor: "#111827",
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  searchBar: {
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 16,
-    paddingLeft: 14,
-    paddingRight: 6,
-    paddingVertical: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
-    gap: 8,
+    gap: 10,
+    paddingTop: 14,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.07)",
   },
-  searchIcon: {
-    flexShrink: 0,
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.08)",
+    height: 42,
+    gap: 6,
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    color: "#E2E8F0",
+    paddingVertical: Platform.OS === "ios" ? 0 : 4,
+    height: "100%",
   },
-  clearButton: {
-    padding: 4,
-  },
-  clearDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-});
-
-const cardStyles = StyleSheet.create({
-  wrapper: {
-    alignItems: "center",
+  findButton: {
+    backgroundColor: "#1A6FFF",
+    borderRadius: 10,
+    height: 42,
     paddingHorizontal: 16,
-    marginBottom: 8,
-    gap: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  findText: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    letterSpacing: 0.8,
+  },
+  section: {
+    gap: 0,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
+    color: "#475569",
     letterSpacing: 1.2,
-    alignSelf: "flex-start",
   },
-
-  // Phone mockup
-  phoneMockup: {
-    width: 220,
-    backgroundColor: "#0D0D14",
-    borderRadius: 32,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#2A2A3A",
-    shadowColor: "#1A6FFF",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 12,
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    marginVertical: 4,
   },
-  phoneTop: {
-    height: 28,
+  emptyRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D0D14",
-  },
-  phoneSpeaker: {
-    width: 48,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#2A2A3A",
-  },
-  phoneScreen: {
-    backgroundColor: "#F5F7FA",
-    padding: 12,
     gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
   },
-  phoneBottom: {
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D0D14",
-  },
-  homeIndicator: {
-    width: 60,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#2A2A3A",
-  },
-
-  // Credit card
-  creditCardContainer: {
-    position: "relative",
-  },
-  creditCard: {
-    borderRadius: 14,
-    padding: 14,
-    gap: 8,
-  },
-  cardGlow: {
-    position: "absolute",
-    bottom: -6,
-    left: 10,
-    right: 10,
-    height: 12,
-    backgroundColor: "#1A6FFF",
-    borderRadius: 14,
-    opacity: 0.2,
-    transform: [{ scaleX: 0.9 }],
-  },
-
-  // Card internals
-  cardTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  chip: {
-    width: 24,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: "#C9A84C",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chipInner: {
-    width: 16,
-    height: 12,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: "#A07830",
-    backgroundColor: "transparent",
-  },
-  recommendedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.4)",
-  },
-  recommendedText: {
-    fontSize: 7,
-    fontFamily: "Inter_600SemiBold",
-    color: "#FFD700",
-    letterSpacing: 0.3,
-  },
-  cardNumberRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginVertical: 2,
-  },
-  dotGroup: {
-    flexDirection: "row",
-    gap: 2,
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.6)",
-  },
-  cardInfoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  cardInfoItem: {
-    gap: 3,
-  },
-  cardInfoLabel: {
-    fontSize: 6,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.45)",
-    letterSpacing: 0.8,
-  },
-  cardInfoPlaceholder: {
-    width: 60,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  cashbackBadge: {
-    width: 36,
-    height: 18,
-    backgroundColor: "rgba(26,111,255,0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-  },
-  cashbackText: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-  },
-  cardBottomRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  categoryChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  categoryChipText: {
-    fontSize: 7,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.6)",
-  },
-  cardLogoPlaceholder: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  logoCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-  },
-
-  // App UI inside phone
-  phoneAppUI: {
-    gap: 6,
-  },
-  uiRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 8,
-    borderRadius: 10,
-  },
-  uiIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: "rgba(26,111,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  uiTextGroup: {
-    flex: 1,
-    gap: 0,
-  },
-  uiLine: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#D1D5DB",
-  },
-  uiTag: {
-    backgroundColor: "rgba(26,111,255,0.12)",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  uiTagText: {
-    fontSize: 8,
-    fontFamily: "Inter_700Bold",
-    color: Colors.light.tint,
-  },
-
-  // Caption
-  caption: {
-    fontSize: 11,
+  emptyText: {
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    letterSpacing: 0.2,
+    color: "#334155",
   },
 });

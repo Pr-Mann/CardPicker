@@ -170,12 +170,14 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Search widget + card placeholder */}
+      {/* Search widget + top 5 + credit card */}
       {showWidget && (
         <SearchWidget
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onLocationPress={onRefresh}
+          stores={stores}
+          onStorePress={handleStorePress}
         />
       )}
 
