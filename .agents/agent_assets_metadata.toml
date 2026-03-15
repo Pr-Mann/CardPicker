@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "YKuS_gsWihomBrl9RR-nh"
+uri = "file://EXECUTE.md"
+type = "text"
+title = "EXECUTE.md — Project Documentation"

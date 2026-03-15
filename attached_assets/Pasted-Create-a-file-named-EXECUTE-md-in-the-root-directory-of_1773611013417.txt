@@ -1,0 +1,123 @@
+Create a file named **`EXECUTE.md`** in the **root directory of the project**.
+
+The purpose of this file is to document **all instructions, architecture decisions, and development standards** followed while building this application so that any developer, AI system, or contributor can understand how the project works and how to continue development in a **production-ready, high-quality manner**.
+
+The document should contain the following sections:
+
+# EXECUTE.md
+
+## 1. Project Overview
+
+* Short description of the app and its purpose.
+* Main features implemented.
+* Target platforms (Android / iOS / Web if applicable).
+* High-level architecture overview.
+
+## 2. Development Standards
+
+Describe the standards followed to keep the project **production-ready and high quality**, including:
+
+* Code structure and modular architecture
+* Naming conventions
+* Error handling strategy
+* Logging strategy
+* Security considerations
+* Performance best practices
+* API design practices
+* UI/UX design principles
+
+## 3. Technology Stack
+
+List all major technologies used in the project, for example:
+
+* Frontend framework
+* Backend services (if any)
+* APIs used
+* Database (if applicable)
+* Deployment platform
+* Package manager
+
+Include short explanations for why each technology was chosen.
+
+## 4. Project Structure
+
+Explain the folder structure of the repository and what each major folder is responsible for.
+
+Example format:
+
+/src → main application code
+/components → reusable UI components
+/services → API calls and business logic
+/assets → images, icons, fonts
+/config → environment configs
+
+## 5. Development Workflow
+
+Explain how development should continue:
+
+* Branch strategy
+* Commit message conventions
+* Pull request expectations
+* Code review expectations
+* Testing expectations
+* Linting and formatting rules
+
+## 6. Instructions for Other AI Systems
+
+Provide guidance for any future AI tools working on this repository. Include rules such as:
+
+* Do not modify core architecture without documentation updates.
+* Maintain modular component structure.
+* Follow naming conventions used in the project.
+* Keep code readable and maintainable.
+* Avoid introducing breaking changes without documentation.
+
+## 7. Environment Setup
+
+Describe how to set up the project locally.
+
+Include steps such as:
+
+1. Clone repository
+2. Install dependencies
+3. Configure environment variables
+4. Run development server
+
+Provide example commands.
+
+## 8. How to Execute / Run the Project
+
+Provide clear steps so anyone can run the project.
+
+Example format:
+
+### Install dependencies
+
+npm install
+
+### Run development server
+
+npm run dev
+
+### Build production version
+
+npm run build
+
+### Start production server
+
+npm start
+
+Also include instructions specific to the current project setup if different.
+
+## 9. Deployment Notes
+
+Explain how the app should be deployed and any configuration required.
+
+## 10. Future Improvements
+
+Add a section listing possible improvements and scaling considerations.
+
+---
+
+The document should be **clear, structured, and easy for developers or AI systems to follow**.
+Ensure the file is saved as **`EXECUTE.md` in the root folder** of the repository.
