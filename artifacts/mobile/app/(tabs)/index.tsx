@@ -4,7 +4,7 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -14,14 +14,12 @@ import {
   Text,
   View,
 } from "react-native";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-} from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { CategoryFilter, FilterOption } from "@/components/CategoryFilter";
+import { SearchWidget } from "@/components/SearchWidget";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { StoreCard } from "@/components/StoreCard";
 import { NearbyStore, useNearbyStores } from "@/hooks/useNearbyStores";
@@ -36,7 +34,7 @@ export default function HomeScreen() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<FilterOption>("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { stores, loading, error } = useNearbyStores(
     coords?.lat ?? null,
@@ -102,16 +100,23 @@ export default function HomeScreen() {
           lat: location.coords.latitude,
           lng: location.coords.longitude,
         });
-        setRefreshKey((k) => k + 1);
       } catch {}
     }
     setRefreshing(false);
   }, []);
 
-  const filteredStores =
-    selectedFilter === "all"
-      ? stores
-      : stores.filter((s) => s.category === selectedFilter);
+  // Filter stores by category then by search query
+  const filteredStores = stores
+    .filter((s) => selectedFilter === "all" || s.category === selectedFilter)
+    .filter((s) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.address.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q)
+      );
+    });
 
   const handleStorePress = (store: NearbyStore) => {
     router.push({
@@ -131,15 +136,20 @@ export default function HomeScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 100;
 
-  return (
-    <View style={[styles.container, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+  // Widget shown above the store list (always visible once location is granted or loading)
+  const showWidget = locationStatus === "granted" || loading;
+
+  const ListHeader = (
+    <View>
+      {/* Page title */}
+      <View style={[styles.headerTop, { paddingTop: topPad + 12 }]}>
         <LinearGradient
-          colors={[C.backgroundHeader, C.background + "00"]}
+          colors={[C.backgroundHeader + "FF", C.backgroundHeader + "00"]}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.headerTop}>
+        <View style={styles.titleRow}>
           <View>
             <Text style={[styles.headerTitle, { color: C.text }]}>Nearby Stores</Text>
             {coords && (
@@ -158,112 +168,177 @@ export default function HomeScreen() {
             <Ionicons name="refresh" size={18} color={C.tint} />
           </Pressable>
         </View>
-
-        {locationStatus === "granted" && (
-          <CategoryFilter selected={selectedFilter} onSelect={setSelectedFilter} />
-        )}
       </View>
 
-      {locationStatus === "idle" || locationStatus === "requesting" ? (
-        <View style={styles.centeredState}>
-          <View style={[styles.stateIcon, { backgroundColor: C.tintLight }]}>
-            <Ionicons name="location" size={40} color={C.tint} />
-          </View>
-          <Text style={[styles.stateTitle, { color: C.text }]}>Finding Your Location</Text>
-          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
-            Please allow location access to discover nearby stores.
-          </Text>
-        </View>
-      ) : locationStatus === "denied" ? (
-        <View style={styles.centeredState}>
-          <View style={[styles.stateIcon, { backgroundColor: "#FFF0F0" }]}>
-            <Ionicons name="location-outline" size={40} color={C.error} />
-          </View>
-          <Text style={[styles.stateTitle, { color: C.text }]}>Location Access Required</Text>
-          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
-            NearbyStores needs your location to find stores near you. Please enable location access in your settings.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.retryButton,
-              { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
-            ]}
-            onPress={requestLocation}
-          >
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </Pressable>
-        </View>
-      ) : error ? (
-        <View style={styles.centeredState}>
-          <View style={[styles.stateIcon, { backgroundColor: "#FFF8E8" }]}>
-            <Ionicons name="warning-outline" size={40} color={C.warning} />
-          </View>
-          <Text style={[styles.stateTitle, { color: C.text }]}>Something Went Wrong</Text>
-          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>{error}</Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.retryButton,
-              { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
-            ]}
-            onPress={onRefresh}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : loading ? (
-        <FlatList
-          data={[1, 2, 3, 4, 5, 6]}
-          keyExtractor={(item) => item.toString()}
-          renderItem={() => <SkeletonCard />}
-          contentContainerStyle={styles.list}
-          scrollEnabled={false}
-        />
-      ) : filteredStores.length === 0 ? (
-        <View style={styles.centeredState}>
-          <View style={[styles.stateIcon, { backgroundColor: C.tintLight }]}>
-            <Ionicons name="search-outline" size={40} color={C.tint} />
-          </View>
-          <Text style={[styles.stateTitle, { color: C.text }]}>No Stores Found</Text>
-          <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
-            {selectedFilter !== "all"
-              ? "No stores of this category nearby. Try a different filter."
-              : "No stores found within 1.5 km. Pull to refresh or try again."}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredStores}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <Animated.View entering={FadeInDown.delay(index * 40).duration(300)}>
-              <StoreCard store={item} onPress={handleStorePress} />
-            </Animated.View>
-          )}
-          contentContainerStyle={[
-            styles.list,
-            { paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 100 },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={C.tint}
-            />
-          }
-          showsVerticalScrollIndicator={false}
+      {/* Search widget + card placeholder */}
+      {showWidget && (
+        <SearchWidget
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onLocationPress={onRefresh}
         />
       )}
 
+      {/* Category filter chips */}
+      {locationStatus === "granted" && (
+        <CategoryFilter selected={selectedFilter} onSelect={setSelectedFilter} />
+      )}
+
+      {/* Section label */}
       {locationStatus === "granted" && !loading && stores.length > 0 && (
-        <View style={[styles.countBadge, { bottom: (Platform.OS === "web" ? 34 + 84 : insets.bottom + 84) + 12 }]}>
-          <View style={[styles.countPill, { backgroundColor: C.backgroundCard }]}>
-            <Ionicons name="business" size={13} color={C.tint} />
-            <Text style={[styles.countText, { color: C.textSecondary }]}>
-              {filteredStores.length} store{filteredStores.length !== 1 ? "s" : ""} nearby
+        <View style={styles.sectionRow}>
+          <Text style={[styles.sectionTitle, { color: C.text }]}>
+            {searchQuery ? "Search Results" : "Closest to You"}
+          </Text>
+          <View style={[styles.countPill, { backgroundColor: C.tintLight }]}>
+            <Text style={[styles.countText, { color: C.tint }]}>
+              {filteredStores.length}
             </Text>
           </View>
         </View>
       )}
+    </View>
+  );
+
+  // Loading skeletons
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: C.background }]}>
+        <FlatList
+          data={[1, 2, 3, 4, 5]}
+          keyExtractor={(item) => item.toString()}
+          ListHeaderComponent={ListHeader}
+          renderItem={() => <SkeletonCard />}
+          contentContainerStyle={{ paddingBottom: bottomPad }}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
+  }
+
+  // Non-list states: idle, requesting, denied, error
+  if (locationStatus !== "granted" || error) {
+    return (
+      <View style={[styles.container, { backgroundColor: C.background }]}>
+        <View style={[styles.headerTop, { paddingTop: topPad + 12 }]}>
+          <LinearGradient
+            colors={[C.backgroundHeader + "FF", C.backgroundHeader + "00"]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.titleRow}>
+            <Text style={[styles.headerTitle, { color: C.text }]}>Nearby Stores</Text>
+          </View>
+        </View>
+
+        {(locationStatus === "idle" || locationStatus === "requesting") && (
+          <View style={styles.centeredState}>
+            <View style={[styles.stateIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="location" size={40} color={C.tint} />
+            </View>
+            <Text style={[styles.stateTitle, { color: C.text }]}>Finding Your Location</Text>
+            <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
+              Please allow location access to discover nearby stores.
+            </Text>
+          </View>
+        )}
+
+        {locationStatus === "denied" && !error && (
+          <View style={styles.centeredState}>
+            <View style={[styles.stateIcon, { backgroundColor: "#FFF0F0" }]}>
+              <Ionicons name="location-outline" size={40} color={C.error} />
+            </View>
+            <Text style={[styles.stateTitle, { color: C.text }]}>Location Access Required</Text>
+            <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
+              NearbyStores needs your location to find stores near you. Please enable location access in your settings.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.retryButton,
+                { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={requestLocation}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.centeredState}>
+            <View style={[styles.stateIcon, { backgroundColor: "#FFF8E8" }]}>
+              <Ionicons name="warning-outline" size={40} color={C.warning} />
+            </View>
+            <Text style={[styles.stateTitle, { color: C.text }]}>Something Went Wrong</Text>
+            <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>{error}</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.retryButton,
+                { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={onRefresh}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Empty state (after filtering)
+  if (filteredStores.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: C.background }]}>
+        <FlatList
+          data={[]}
+          keyExtractor={(item: any) => item}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={
+            <View style={styles.centeredState}>
+              <View style={[styles.stateIcon, { backgroundColor: C.tintLight }]}>
+                <Ionicons name="search-outline" size={40} color={C.tint} />
+              </View>
+              <Text style={[styles.stateTitle, { color: C.text }]}>No Stores Found</Text>
+              <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>
+                {searchQuery
+                  ? `No results for "${searchQuery}". Try a different search.`
+                  : selectedFilter !== "all"
+                  ? "No stores of this category nearby. Try a different filter."
+                  : "No stores found within 1.5 km. Pull to refresh or try again."}
+              </Text>
+            </View>
+          }
+          renderItem={() => null}
+          contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
+  }
+
+  // Main store list
+  return (
+    <View style={[styles.container, { backgroundColor: C.background }]}>
+      <FlatList
+        data={filteredStores}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={ListHeader}
+        renderItem={({ item, index }) => (
+          <Animated.View entering={FadeInDown.delay(index * 35).duration(280)}>
+            <StoreCard store={item} onPress={handleStorePress} />
+          </Animated.View>
+        )}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
+        }
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      />
     </View>
   );
 }
@@ -272,15 +347,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    zIndex: 10,
-  },
   headerTop: {
+    paddingBottom: 8,
+    paddingHorizontal: 20,
+  },
+  titleRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 4,
   },
   headerTitle: {
     fontSize: 28,
@@ -304,14 +378,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  list: {
-    paddingTop: 8,
+  sectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    paddingBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: -0.3,
+  },
+  countPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  countText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
   centeredState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 40,
+    paddingVertical: 60,
     gap: 16,
   },
   stateIcon: {
@@ -344,28 +438,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-  },
-  countBadge: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  countPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  countText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
   },
 });
