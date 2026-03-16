@@ -92,7 +92,7 @@ export default function OnboardingScreen() {
       ]}
     >
       <LinearGradient
-        colors={["#EBF3FF", "#F5F7FA"]}
+        colors={["#F5F3FF", "#FFFFFF"]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 0.5 }}
@@ -181,57 +181,57 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 40,
-    gap: 24,
+    paddingHorizontal: 36,
+    gap: 28,
   },
   iconCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 40,
+    width: 150,
+    height: 150,
+    borderRadius: 46,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontFamily: "Inter_700Bold",
     textAlign: "center",
-    letterSpacing: -0.5,
-    lineHeight: 34,
+    letterSpacing: -0.6,
+    lineHeight: 38,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 26,
   },
   dotsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingBottom: 24,
+    gap: 8,
+    paddingBottom: 32,
   },
   dot: {
-    height: 8,
-    borderRadius: 4,
+    height: 10,
+    borderRadius: 5,
   },
   buttonContainer: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   primaryButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 17,
-    borderRadius: 16,
+    gap: 12,
+    paddingVertical: 18,
+    borderRadius: 20,
   },
   primaryButtonText: {
     color: "#fff",
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: -0.2,
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.3,
   },
 });

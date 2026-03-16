@@ -207,7 +207,7 @@ export default function HomeScreen() {
       <View style={[styles.container, { backgroundColor: C.background }]}>
         <FlatList
           data={[1, 2, 3, 4, 5]}
-          keyExtractor={(item) => item.toString()}
+          keyExtractor={(item: number) => item.toString()}
           ListHeaderComponent={ListHeader}
           renderItem={() => <SkeletonCard />}
           contentContainerStyle={{ paddingBottom: bottomPad }}
@@ -253,7 +253,7 @@ export default function HomeScreen() {
               NearbyStores needs your location to find stores near you. Please enable location access in your settings.
             </Text>
             <Pressable
-              style={({ pressed }) => [
+              style={({ pressed }: { pressed: boolean }) => [
                 styles.retryButton,
                 { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
               ]}
@@ -272,7 +272,7 @@ export default function HomeScreen() {
             <Text style={[styles.stateTitle, { color: C.text }]}>Something Went Wrong</Text>
             <Text style={[styles.stateSubtitle, { color: C.textSecondary }]}>{error}</Text>
             <Pressable
-              style={({ pressed }) => [
+              style={({ pressed }: { pressed: boolean }) => [
                 styles.retryButton,
                 { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
               ]}
@@ -325,9 +325,9 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: C.background }]}>
       <FlatList
         data={filteredStores}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: NearbyStore) => item.id}
         ListHeaderComponent={ListHeader}
-        renderItem={({ item, index }) => (
+        renderItem={({ item, index }: { item: NearbyStore; index: number }) => (
           <Animated.View entering={FadeInDown.delay(index * 35).duration(280)}>
             <StoreCard store={item} onPress={handleStorePress} />
           </Animated.View>
@@ -358,48 +358,48 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontFamily: "Inter_700Bold",
-    letterSpacing: -0.8,
+    letterSpacing: -1.2,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 2,
+    marginTop: 4,
   },
   locationLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
   },
   refreshButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 4,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: -0.3,
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.4,
   },
   countPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   countText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
   },
   centeredState: {
     flex: 1,
@@ -410,34 +410,35 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   stateIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
+    width: 100,
+    height: 100,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
   },
   stateTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontFamily: "Inter_700Bold",
     textAlign: "center",
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
   },
   stateSubtitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 24,
   },
   retryButton: {
-    paddingVertical: 13,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    marginTop: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    borderRadius: 16,
+    marginTop: 10,
   },
   retryButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: "Inter_600SemiBold",
+    letterSpacing: -0.2,
   },
 });

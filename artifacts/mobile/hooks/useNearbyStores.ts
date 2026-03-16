@@ -96,14 +96,28 @@ export function useNearbyStores(
     if (lat === null || lng === null) return;
 
     const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      setError("Google Maps API key not configured.");
-      return;
-    }
 
     const fetchStores = async () => {
       setLoading(true);
       setError(null);
+
+      if (!apiKey) {
+        // Provide mock data so the UI can be tested without an API key!
+        setTimeout(() => {
+          setStores([
+            { id: "1", name: "Whole Foods Market", address: "123 Organic Way", distanceMeters: 450, category: "grocery", isOpen: true, rating: 4.8, lat: lat, lng: lng },
+            { id: "2", name: "Apple Store", address: "202 Tech Ave", distanceMeters: 650, category: "retail", isOpen: true, rating: 4.9, lat: lat, lng: lng },
+            { id: "3", name: "Starbucks Reserve", address: "456 Espresso Ln", distanceMeters: 800, category: "restaurant", isOpen: true, rating: 4.6, lat: lat, lng: lng },
+            { id: "4", name: "Equinox Fitness", address: "303 Iron St", distanceMeters: 850, category: "gym", isOpen: true, rating: 4.7, lat: lat, lng: lng },
+            { id: "5", name: "Shell Station", address: "789 Fast Track Rd", distanceMeters: 1200, category: "gas", isOpen: true, rating: 3.9, lat: lat, lng: lng },
+            { id: "6", name: "CVS Pharmacy", address: "101 Health Blvd", distanceMeters: 1400, category: "pharmacy", isOpen: false, rating: 4.2, lat: lat, lng: lng },
+            { id: "7", name: "7-Eleven", address: "404 Midnight Rd", distanceMeters: 1550, category: "convenience", isOpen: true, rating: 4.1, lat: lat, lng: lng },
+          ]);
+          setLoading(false);
+        }, 1200);
+        return;
+      }
+
 
       try {
         // Places API (New) — Nearby Search endpoint
