@@ -118,23 +118,6 @@ export default function HomeScreen() {
       );
     });
 
-  const handleStorePress = (store: NearbyStore) => {
-    router.push({
-      pathname: "/store-detail",
-      params: {
-        id: store.id,
-        name: store.name,
-        address: store.address,
-        distanceMeters: store.distanceMeters.toString(),
-        category: store.category,
-        isOpen: store.isOpen?.toString() ?? "",
-        rating: store.rating?.toString() ?? "",
-        lat: store.lat.toString(),
-        lng: store.lng.toString(),
-      },
-    });
-  };
-
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 100;
 
@@ -329,7 +312,7 @@ export default function HomeScreen() {
         ListHeaderComponent={ListHeader}
         renderItem={({ item, index }: { item: NearbyStore; index: number }) => (
           <Animated.View entering={FadeInDown.delay(index * 35).duration(280)}>
-            <StoreCard store={item} onPress={handleStorePress} />
+            <StoreCard store={item} />
           </Animated.View>
         )}
         contentContainerStyle={{ paddingBottom: bottomPad }}
