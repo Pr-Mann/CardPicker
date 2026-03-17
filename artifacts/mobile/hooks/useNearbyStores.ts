@@ -64,7 +64,7 @@ const CATEGORY_KEYWORDS: Record<StoreCategory, string[]> = {
   other: [],
 };
 
-function detectCategory(types: string[], name: string): StoreCategory {
+export function detectCategory(types: string[], name: string): StoreCategory {
   // Check types first using Places API (New) type names
   for (const type of types) {
     if (type in TYPE_TO_CATEGORY) {
@@ -226,7 +226,7 @@ export function useNearbyStores(
   return { stores, loading, error };
 }
 
-function haversineDistance(
+export function haversineDistance(
   lat1: number,
   lng1: number,
   lat2: number,

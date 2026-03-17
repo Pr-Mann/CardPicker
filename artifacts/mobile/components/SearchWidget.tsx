@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -19,7 +19,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { NearbyStore, formatDistanceLabel, StoreCategory } from "@/hooks/useNearbyStores";
+import { NearbyStore, formatDistanceLabel, StoreCategory, haversineDistance, detectCategory } from "@/hooks/useNearbyStores";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -411,11 +411,73 @@ const ccSt = StyleSheet.create({
 
 // ── Main Widget ──────────────────────────────────────────────────────────────
 
+const FIELD_MASK = [
+  "places.id",
+  "places.displayName",
+  "places.formattedAddress",
+  "places.location",
+  "places.types",
+  "places.currentOpeningHours",
+  "places.rating",
+].join(",");
+
+async function textSearchPlaces(
+  query: string,
+  lat: number,
+  lng: number
+): Promise<NearbyStore[]> {
+  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return [];
+
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": FIELD_MASK,
+    },
+    body: JSON.stringify({
+      textQuery: query,
+      locationBias: {
+        circle: {
+          center: { latitude: lat, longitude: lng },
+          radius: 10000,
+        },
+      },
+      maxResultCount: 10,
+    }),
+  });
+
+  if (!response.ok) return [];
+  const data = await response.json();
+  const places: any[] = data.places ?? [];
+
+  return places
+    .map((place) => {
+      const pLat = place.location?.latitude ?? 0;
+      const pLng = place.location?.longitude ?? 0;
+      const name: string = place.displayName?.text ?? "Unknown";
+      return {
+        id: place.id,
+        name,
+        address: place.formattedAddress ?? "",
+        distanceMeters: haversineDistance(lat, lng, pLat, pLng),
+        category: detectCategory(place.types ?? [], name),
+        isOpen: place.currentOpeningHours?.openNow,
+        rating: place.rating,
+        lat: pLat,
+        lng: pLng,
+      } satisfies NearbyStore;
+    })
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+}
+
 export interface SearchWidgetProps {
   searchQuery: string;
   onSearchChange: (text: string) => void;
   onLocationPress: () => void;
   stores: NearbyStore[];
+  coords: { lat: number; lng: number } | null;
 }
 
 export function SearchWidget({
@@ -423,30 +485,55 @@ export function SearchWidget({
   onSearchChange,
   onLocationPress,
   stores,
+  coords,
 }: SearchWidgetProps) {
   const inputRef = useRef<TextInput>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [textResults, setTextResults] = useState<NearbyStore[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Top 3 filtered by search query
-  const displayed = stores
-    .filter((s) => {
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        s.name.toLowerCase().includes(q) ||
-        s.address.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q)
-      );
-    })
-    .slice(0, 3);
+  // Run Places Text Search
+  const runTextSearch = useCallback(
+    async (query: string) => {
+      if (!query.trim() || !coords) return;
+      setIsSearching(true);
+      try {
+        const results = await textSearchPlaces(query, coords.lat, coords.lng);
+        setTextResults(results);
+      } catch {
+        // silently keep previous results
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [coords]
+  );
 
-  // Auto-select first result whenever displayed list changes
+  // Debounce auto-search as user types
   useEffect(() => {
+    if (!searchQuery.trim()) {
+      setTextResults(null);
+      setIsSearching(false);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runTextSearch(searchQuery), 600);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery, runTextSearch]);
+
+  // What to show: text search results (when available) or nearest stores
+  const displayed = (textResults ?? stores).slice(0, 3);
+
+  // Auto-select first result whenever list changes
+  useEffect(() => {
+    const key = displayed.map((s) => s.id).join(",");
     if (displayed.length > 0) {
-      setSelectedId((prev) => {
-        const stillExists = displayed.some((s) => s.id === prev);
-        return stillExists ? prev : displayed[0].id;
-      });
+      setSelectedId((prev) =>
+        displayed.some((s) => s.id === prev) ? prev : displayed[0].id
+      );
     } else {
       setSelectedId(null);
     }
@@ -459,7 +546,12 @@ export function SearchWidget({
 
   const handleFind = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onLocationPress();
+    if (searchQuery.trim()) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      runTextSearch(searchQuery);
+    } else {
+      onLocationPress();
+    }
     inputRef.current?.blur();
   };
 
@@ -490,23 +582,42 @@ export function SearchWidget({
           )}
         </View>
         <AnimatedPressable
-          style={[wSt.findButton, findAnimStyle]}
+          style={[
+            wSt.findButton,
+            findAnimStyle,
+            searchQuery.trim() && { backgroundColor: "#7C3AED" },
+          ]}
           onPressIn={() => { findScale.value = withSpring(0.88, { damping: 20 }); }}
           onPressOut={() => { findScale.value = withSpring(1, { damping: 20 }); }}
           onPress={handleFind}
         >
-          <Text style={wSt.findText}>FIND</Text>
+          {searchQuery.trim() ? (
+            <Ionicons name="search" size={16} color="#fff" />
+          ) : (
+            <Ionicons name="navigate" size={16} color="#fff" />
+          )}
         </AnimatedPressable>
       </View>
 
-      {/* ── Top 3 Results ── */}
+      {/* ── Results ── */}
       <View style={wSt.sectionHeader}>
-        <Ionicons name="location" size={10} color="#475569" />
-        <Text style={wSt.sectionLabel}>{searchQuery.trim() ? "SEARCH RESULTS" : "TOP 3 NEARBY"}</Text>
-        <Text style={wSt.sectionHint}>Tap to select</Text>
+        <Ionicons
+          name={isSearching ? "sync" : searchQuery.trim() ? "search" : "location"}
+          size={10}
+          color={isSearching ? "#1A6FFF" : "#475569"}
+        />
+        <Text style={[wSt.sectionLabel, isSearching && { color: "#1A6FFF" }]}>
+          {isSearching ? "SEARCHING..." : searchQuery.trim() ? "RESULTS NEAR YOU" : "TOP 3 NEARBY"}
+        </Text>
+        {!isSearching && <Text style={wSt.sectionHint}>Tap to select</Text>}
       </View>
 
-      {displayed.length === 0 ? (
+      {isSearching ? (
+        <View style={wSt.emptyRow}>
+          <Ionicons name="ellipsis-horizontal" size={16} color="#334155" />
+          <Text style={wSt.emptyText}>Finding "{searchQuery}" near you...</Text>
+        </View>
+      ) : displayed.length === 0 ? (
         <View style={wSt.emptyRow}>
           <Ionicons name="search-outline" size={16} color="#1E293B" />
           <Text style={wSt.emptyText}>
@@ -595,11 +706,11 @@ const wSt = StyleSheet.create({
     backgroundColor: "#1A6FFF",
     borderRadius: 9,
     height: 38,
-    paddingHorizontal: 14,
+    width: 38,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  findText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff", letterSpacing: 0.6 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",

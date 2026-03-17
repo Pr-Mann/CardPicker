@@ -160,6 +160,7 @@ export default function HomeScreen() {
           onSearchChange={setSearchQuery}
           onLocationPress={onRefresh}
           stores={stores}
+          coords={coords}
         />
       )}
 
