@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -16,55 +16,134 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import { NearbyStore, formatDistanceLabel, StoreCategory } from "@/hooks/useNearbyStores";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-// ── Category icon mapping ────────────────────────────────────────────────────
+// ── Category metadata ────────────────────────────────────────────────────────
 
 const CATEGORY_META: Record<
   StoreCategory,
   { icon: string; iconSet: "ionicons" | "mci"; color: string; bg: string }
 > = {
-  grocery:     { icon: "storefront-outline",  iconSet: "ionicons", color: "#22C55E", bg: "#052E16" },
-  gas:         { icon: "gas-station",          iconSet: "mci",      color: "#F59E0B", bg: "#2D1B00" },
-  pharmacy:    { icon: "medkit-outline",       iconSet: "ionicons", color: "#EF4444", bg: "#2D0A0A" },
-  restaurant:  { icon: "restaurant-outline",  iconSet: "ionicons", color: "#F97316", bg: "#2D1000" },
-  retail:      { icon: "bag-handle-outline",  iconSet: "ionicons", color: "#8B5CF6", bg: "#1B0840" },
-  gym:         { icon: "barbell-outline",      iconSet: "ionicons", color: "#06B6D4", bg: "#002D33" },
-  convenience: { icon: "basket-outline",       iconSet: "ionicons", color: "#EC4899", bg: "#2D0020" },
-  other:       { icon: "location-outline",     iconSet: "ionicons", color: "#94A3B8", bg: "#1E293B" },
+  grocery:     { icon: "storefront-outline", iconSet: "ionicons", color: "#22C55E", bg: "#052E16" },
+  gas:         { icon: "gas-station",         iconSet: "mci",      color: "#F59E0B", bg: "#2D1B00" },
+  pharmacy:    { icon: "medkit-outline",      iconSet: "ionicons", color: "#EF4444", bg: "#2D0A0A" },
+  restaurant:  { icon: "restaurant-outline", iconSet: "ionicons", color: "#F97316", bg: "#2D1000" },
+  retail:      { icon: "bag-handle-outline", iconSet: "ionicons", color: "#8B5CF6", bg: "#1B0840" },
+  gym:         { icon: "barbell-outline",     iconSet: "ionicons", color: "#06B6D4", bg: "#002D33" },
+  convenience: { icon: "basket-outline",      iconSet: "ionicons", color: "#EC4899", bg: "#2D0020" },
+  other:       { icon: "location-outline",    iconSet: "ionicons", color: "#94A3B8", bg: "#1E293B" },
 };
+
+// ── Card recommendation per category ────────────────────────────────────────
+
+interface CardRec {
+  name: string;
+  cashback: string;
+  benefit: string;
+  gradient: [string, string, string];
+  glowColor: string;
+  network: "VISA" | "MASTERCARD" | "AMEX";
+  networkColors: [string, string];
+}
+
+const CARD_REC: Record<StoreCategory, CardRec> = {
+  grocery: {
+    name: "Green Rewards",
+    cashback: "6%",
+    benefit: "Grocery & Supermarkets",
+    gradient: ["#064E3B", "#065F46", "#047857"],
+    glowColor: "#22C55E",
+    network: "VISA",
+    networkColors: ["#1A3C8F", "#1E4DB7"],
+  },
+  gas: {
+    name: "Fuel Plus",
+    cashback: "5%",
+    benefit: "Gas Stations & Fuel",
+    gradient: ["#78350F", "#92400E", "#B45309"],
+    glowColor: "#F59E0B",
+    network: "MASTERCARD",
+    networkColors: ["#EB001B", "#F79E1B"],
+  },
+  pharmacy: {
+    name: "Health Care",
+    cashback: "3%",
+    benefit: "Pharmacy & Drugstores",
+    gradient: ["#7F1D1D", "#991B1B", "#B91C1C"],
+    glowColor: "#EF4444",
+    network: "VISA",
+    networkColors: ["#1A3C8F", "#1E4DB7"],
+  },
+  restaurant: {
+    name: "Dining Elite",
+    cashback: "4%",
+    benefit: "Restaurants & Cafés",
+    gradient: ["#7C2D12", "#9A3412", "#C2410C"],
+    glowColor: "#F97316",
+    network: "AMEX",
+    networkColors: ["#2E86DE", "#54A0FF"],
+  },
+  retail: {
+    name: "Shopping Pro",
+    cashback: "2%",
+    benefit: "Retail & Shopping",
+    gradient: ["#4C1D95", "#5B21B6", "#6D28D9"],
+    glowColor: "#8B5CF6",
+    network: "VISA",
+    networkColors: ["#1A3C8F", "#1E4DB7"],
+  },
+  gym: {
+    name: "Active Life",
+    cashback: "3%",
+    benefit: "Gyms & Fitness",
+    gradient: ["#0C4A6E", "#075985", "#0369A1"],
+    glowColor: "#06B6D4",
+    network: "MASTERCARD",
+    networkColors: ["#EB001B", "#F79E1B"],
+  },
+  convenience: {
+    name: "Everyday",
+    cashback: "2%",
+    benefit: "Convenience Stores",
+    gradient: ["#881337", "#9F1239", "#BE123C"],
+    glowColor: "#EC4899",
+    network: "VISA",
+    networkColors: ["#1A3C8F", "#1E4DB7"],
+  },
+  other: {
+    name: "Universal",
+    cashback: "1.5%",
+    benefit: "All Purchases",
+    gradient: ["#1E3A5F", "#1E40AF", "#1D4ED8"],
+    glowColor: "#1A6FFF",
+    network: "VISA",
+    networkColors: ["#1A3C8F", "#1E4DB7"],
+  },
+};
+
+// ── Sub-components ───────────────────────────────────────────────────────────
 
 function CategoryIcon({ category }: { category: StoreCategory }) {
   const meta = CATEGORY_META[category] ?? CATEGORY_META.other;
-  const icon =
-    meta.iconSet === "mci" ? (
-      <MaterialCommunityIcons name={meta.icon as any} size={14} color={meta.color} />
-    ) : (
-      <Ionicons name={meta.icon as any} size={14} color={meta.color} />
-    );
   return (
-    <View style={[iconStyles.box, { backgroundColor: meta.bg }]}>
-      {icon}
+    <View style={[iconSt.box, { backgroundColor: meta.bg }]}>
+      {meta.iconSet === "mci" ? (
+        <MaterialCommunityIcons name={meta.icon as any} size={14} color={meta.color} />
+      ) : (
+        <Ionicons name={meta.icon as any} size={14} color={meta.color} />
+      )}
     </View>
   );
 }
 
-const iconStyles = StyleSheet.create({
-  box: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+const iconSt = StyleSheet.create({
+  box: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
 });
-
-// ── Star Rating ──────────────────────────────────────────────────────────────
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -81,230 +160,253 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-// ── Store Row (non-interactive, display only) ────────────────────────────────
+// ── Store Row — tappable with selection state ────────────────────────────────
 
-function StoreRow({ store, rank }: { store: NearbyStore; rank: number }) {
-  const categoryLabel =
-    store.category.charAt(0).toUpperCase() + store.category.slice(1);
+function StoreRow({
+  store,
+  rank,
+  isSelected,
+  onSelect,
+}: {
+  store: NearbyStore;
+  rank: number;
+  isSelected: boolean;
+  onSelect: (store: NearbyStore) => void;
+}) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const categoryLabel = store.category.charAt(0).toUpperCase() + store.category.slice(1);
+  const accent = CATEGORY_META[store.category]?.color ?? "#1A6FFF";
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(rank * 45).duration(200)}
-      style={[rowStyles.row, rank === 0 && rowStyles.rowFirst]}
-    >
-      <CategoryIcon category={store.category} />
-
-      <View style={rowStyles.textCol}>
-        <Text style={rowStyles.name} numberOfLines={1}>
-          {store.name}
-        </Text>
-        <View style={rowStyles.metaRow}>
-          {store.rating != null && (
-            <>
-              <StarRating rating={store.rating} />
-              <Text style={rowStyles.sep}>·</Text>
-            </>
-          )}
-          <Text style={rowStyles.categoryLabel}>{categoryLabel}</Text>
-        </View>
-      </View>
-
-      <View style={rowStyles.rightCol}>
-        <Text style={rowStyles.distance}>
-          {formatDistanceLabel(store.distanceMeters)}
-        </Text>
-        {store.isOpen === true && (
-          <View style={rowStyles.openBadge}>
-            <Text style={rowStyles.openText}>Open</Text>
-          </View>
+    <Animated.View entering={FadeInDown.delay(rank * 45).duration(200)} style={animStyle}>
+      <AnimatedPressable
+        onPressIn={() => { scale.value = withSpring(0.97, { damping: 20 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20 }); }}
+        onPress={() => {
+          Haptics.selectionAsync();
+          onSelect(store);
+        }}
+        style={[
+          rowSt.row,
+          rank > 0 && rowSt.rowBorder,
+          isSelected && rowSt.rowSelected,
+        ]}
+      >
+        {/* Left accent bar when selected */}
+        {isSelected && (
+          <View style={[rowSt.accentBar, { backgroundColor: accent }]} />
         )}
-      </View>
+
+        <CategoryIcon category={store.category} />
+
+        <View style={rowSt.textCol}>
+          <Text style={[rowSt.name, isSelected && { color: "#FFFFFF" }]} numberOfLines={1}>
+            {store.name}
+          </Text>
+          <View style={rowSt.metaRow}>
+            {store.rating != null && (
+              <>
+                <StarRating rating={store.rating} />
+                <Text style={rowSt.sep}>·</Text>
+              </>
+            )}
+            <Text style={rowSt.catLabel}>{categoryLabel}</Text>
+          </View>
+        </View>
+
+        <View style={rowSt.rightCol}>
+          <Text style={[rowSt.distance, isSelected && { color: accent }]}>
+            {formatDistanceLabel(store.distanceMeters)}
+          </Text>
+          {isSelected ? (
+            <View style={[rowSt.selectedBadge, { backgroundColor: accent + "22" }]}>
+              <Ionicons name="checkmark-circle" size={11} color={accent} />
+              <Text style={[rowSt.selectedText, { color: accent }]}>Selected</Text>
+            </View>
+          ) : store.isOpen === true ? (
+            <View style={rowSt.openBadge}>
+              <Text style={rowSt.openText}>Open</Text>
+            </View>
+          ) : null}
+        </View>
+      </AnimatedPressable>
     </Animated.View>
   );
 }
 
-const rowStyles = StyleSheet.create({
+const rowSt = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 14,
+    position: "relative",
+    overflow: "hidden",
+  },
+  rowBorder: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255,255,255,0.06)",
   },
-  rowFirst: {
+  rowSelected: {
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderTopWidth: 0,
-    backgroundColor: "rgba(26,111,255,0.10)",
+    marginHorizontal: 6,
     borderRadius: 10,
-    marginHorizontal: 8,
-    paddingHorizontal: 10,
-    marginTop: 2,
+    paddingHorizontal: 8,
+    marginVertical: 2,
   },
-  textCol: {
-    flex: 1,
-    gap: 3,
+  accentBar: {
+    position: "absolute",
+    left: 0,
+    top: 6,
+    bottom: 6,
+    width: 3,
+    borderRadius: 2,
   },
+  textCol: { flex: 1, gap: 3 },
   name: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
-    color: "#E2E8F0",
+    color: "#CBD5E1",
     letterSpacing: -0.1,
   },
-  metaRow: {
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  sep: { fontSize: 9, color: "#334155" },
+  catLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#64748B" },
+  rightCol: { alignItems: "flex-end", gap: 3, flexShrink: 0 },
+  distance: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#1A6FFF" },
+  selectedBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-  },
-  sep: {
-    fontSize: 9,
-    color: "#334155",
-  },
-  categoryLabel: {
-    fontSize: 10,
-    fontFamily: "Inter_400Regular",
-    color: "#64748B",
-  },
-  rightCol: {
-    alignItems: "flex-end",
     gap: 3,
-    flexShrink: 0,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
   },
-  distance: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    color: "#1A6FFF",
-  },
+  selectedText: { fontSize: 8, fontFamily: "Inter_600SemiBold" },
   openBadge: {
     backgroundColor: "rgba(34,197,94,0.15)",
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
   },
-  openText: {
-    fontSize: 8,
-    fontFamily: "Inter_600SemiBold",
-    color: "#22C55E",
-  },
+  openText: { fontSize: 8, fontFamily: "Inter_600SemiBold", color: "#22C55E" },
 });
 
-// ── Credit Card ──────────────────────────────────────────────────────────────
+// ── Credit Card — driven by selected store ───────────────────────────────────
 
-function CreditCard() {
+function CreditCard({ store }: { store: NearbyStore | null }) {
+  const rec = store ? CARD_REC[store.category] : CARD_REC.other;
+
+  // Animate opacity on card swap
+  const opacity = useSharedValue(1);
+  const cardAnim = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  useEffect(() => {
+    opacity.value = withTiming(0.4, { duration: 120 }, () => {
+      opacity.value = withTiming(1, { duration: 220 });
+    });
+  }, [store?.id]);
+
+  const isVisa = rec.network === "VISA";
+  const isAmex = rec.network === "AMEX";
+
   return (
-    <LinearGradient
-      colors={["#4F46E5", "#7C3AED", "#DB2777"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={ccStyles.card}
-    >
-      <View style={ccStyles.topRow}>
-        <View style={ccStyles.chip}>
-          <View style={ccStyles.chipH} />
-          <View style={ccStyles.chipV} />
-        </View>
-        <View style={ccStyles.logoRow}>
-          <View style={[ccStyles.circle, { backgroundColor: "#EB001B", marginRight: -7 }]} />
-          <View style={[ccStyles.circle, { backgroundColor: "#F79E1B", opacity: 0.9 }]} />
-        </View>
-      </View>
+    <Animated.View style={[{ marginHorizontal: 10, marginBottom: 2 }, cardAnim]}>
+      <LinearGradient
+        colors={rec.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[ccSt.card, { shadowColor: rec.glowColor }]}
+      >
+        {/* Top row: chip + network logo */}
+        <View style={ccSt.topRow}>
+          <View style={ccSt.chip}>
+            <View style={ccSt.chipH} />
+            <View style={ccSt.chipV} />
+          </View>
 
-      <Text style={ccStyles.number}>4512  8765  4321  0987</Text>
+          {/* Cashback badge */}
+          <View style={ccSt.cashbackBadge}>
+            <Text style={ccSt.cashbackValue}>{rec.cashback}</Text>
+            <Text style={ccSt.cashbackLabel}>BACK</Text>
+          </View>
 
-      <View style={ccStyles.bottomRow}>
-        <View>
-          <Text style={ccStyles.label}>CARD HOLDER</Text>
-          <Text style={ccStyles.value}>JOHN A. DOE</Text>
+          {/* Network logo */}
+          <View style={ccSt.logoRow}>
+            <View style={[ccSt.circle, { backgroundColor: rec.networkColors[0], marginRight: isVisa || isAmex ? 0 : -7 }]} />
+            {!isVisa && !isAmex && (
+              <View style={[ccSt.circle, { backgroundColor: rec.networkColors[1], opacity: 0.9 }]} />
+            )}
+          </View>
         </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={ccStyles.label}>EXP DATE</Text>
-          <Text style={ccStyles.value}>11/27</Text>
+
+        {/* Card number */}
+        <Text style={ccSt.number}>4512  8765  4321  0987</Text>
+
+        {/* Card name + benefit */}
+        <View style={ccSt.midRow}>
+          <Text style={ccSt.cardName}>{rec.name}</Text>
+          <Text style={ccSt.benefit} numberOfLines={1}>{rec.benefit}</Text>
         </View>
-        <Text style={ccStyles.network}>VISA</Text>
-      </View>
-    </LinearGradient>
+
+        {/* Bottom: store name it's recommended for */}
+        <View style={ccSt.bottomRow}>
+          <View>
+            <Text style={ccSt.label}>RECOMMENDED FOR</Text>
+            <Text style={ccSt.value} numberOfLines={1}>
+              {store ? store.name : "All Purchases"}
+            </Text>
+          </View>
+          <Text style={[ccSt.network, { letterSpacing: isAmex ? 1.5 : 2.5 }]}>
+            {rec.network}
+          </Text>
+        </View>
+      </LinearGradient>
+    </Animated.View>
   );
 }
 
-const ccStyles = StyleSheet.create({
+const ccSt = StyleSheet.create({
   card: {
-    marginHorizontal: 10,
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
-    shadowColor: "#1A6FFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
+    borderRadius: 14,
+    padding: 15,
+    gap: 11,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   chip: {
-    width: 28,
-    height: 21,
-    borderRadius: 4,
-    backgroundColor: "#C9A84C",
+    width: 28, height: 21, borderRadius: 4, backgroundColor: "#C9A84C",
+    alignItems: "center", justifyContent: "center",
+  },
+  chipH: { position: "absolute", width: "100%", height: 1, backgroundColor: "#A07830", top: "50%" },
+  chipV: { position: "absolute", width: 1, height: "100%", backgroundColor: "#A07830", left: "50%" },
+  cashbackBadge: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     alignItems: "center",
-    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  chipH: {
-    position: "absolute",
-    width: "100%",
-    height: 1,
-    backgroundColor: "#A07830",
-    top: "50%",
-  },
-  chipV: {
-    position: "absolute",
-    width: 1,
-    height: "100%",
-    backgroundColor: "#A07830",
-    left: "50%",
-  },
-  logoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  circle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  number: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 14,
-    color: "#E2E8F0",
-    letterSpacing: 1.8,
-  },
-  bottomRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  label: {
-    fontSize: 7,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  value: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    color: "#E2E8F0",
-    letterSpacing: 0.3,
-  },
-  network: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: "#E2E8F0",
-    letterSpacing: 2.5,
-    alignSelf: "flex-end",
-  },
+  cashbackValue: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 16 },
+  cashbackLabel: { fontSize: 7, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)", letterSpacing: 1 },
+  logoRow: { flexDirection: "row", alignItems: "center" },
+  circle: { width: 22, height: 22, borderRadius: 11 },
+  number: { fontFamily: "Inter_700Bold", fontSize: 13, color: "rgba(255,255,255,0.9)", letterSpacing: 1.8 },
+  midRow: { gap: 2 },
+  cardName: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff", letterSpacing: 0.3 },
+  benefit: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)" },
+  bottomRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 2 },
+  label: { fontSize: 7, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.4)", letterSpacing: 0.8, marginBottom: 2 },
+  value: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#E2E8F0", letterSpacing: 0.2, maxWidth: 160 },
+  network: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#E2E8F0", alignSelf: "flex-end" },
 });
 
 // ── Main Widget ──────────────────────────────────────────────────────────────
@@ -323,17 +425,7 @@ export function SearchWidget({
   stores,
 }: SearchWidgetProps) {
   const inputRef = useRef<TextInput>(null);
-
-  const findScale = useSharedValue(1);
-  const findAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: findScale.value }],
-  }));
-
-  const handleFind = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onLocationPress();
-    inputRef.current?.blur();
-  };
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Top 3 filtered by search query
   const displayed = stores
@@ -348,16 +440,39 @@ export function SearchWidget({
     })
     .slice(0, 3);
 
+  // Auto-select first result whenever displayed list changes
+  useEffect(() => {
+    if (displayed.length > 0) {
+      setSelectedId((prev) => {
+        const stillExists = displayed.some((s) => s.id === prev);
+        return stillExists ? prev : displayed[0].id;
+      });
+    } else {
+      setSelectedId(null);
+    }
+  }, [displayed.map((s) => s.id).join(",")]);
+
+  const selectedStore = displayed.find((s) => s.id === selectedId) ?? displayed[0] ?? null;
+
+  const findScale = useSharedValue(1);
+  const findAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: findScale.value }] }));
+
+  const handleFind = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onLocationPress();
+    inputRef.current?.blur();
+  };
+
   return (
-    <Animated.View entering={FadeIn.duration(300)} style={widgetStyles.container}>
+    <Animated.View entering={FadeIn.duration(300)} style={wSt.container}>
 
       {/* ── Search Bar ── */}
-      <View style={widgetStyles.searchRow}>
-        <View style={widgetStyles.searchBar}>
+      <View style={wSt.searchRow}>
+        <View style={wSt.searchBar}>
           <Ionicons name="search" size={14} color="#64748B" style={{ marginLeft: 10 }} />
           <TextInput
             ref={inputRef}
-            style={widgetStyles.input}
+            style={wSt.input}
             placeholder="Search stores, services, or locations..."
             placeholderTextColor="#475569"
             value={searchQuery}
@@ -369,88 +484,91 @@ export function SearchWidget({
             selectionColor="#1A6FFF"
           />
           {searchQuery.length > 0 && (
-            <Pressable
-              onPress={() => { onSearchChange(""); inputRef.current?.focus(); }}
-              style={{ padding: 6 }}
-            >
+            <Pressable onPress={() => { onSearchChange(""); inputRef.current?.focus(); }} style={{ padding: 6 }}>
               <Ionicons name="close-circle" size={14} color="#334155" />
             </Pressable>
           )}
         </View>
-
         <AnimatedPressable
-          style={[widgetStyles.findButton, findAnimStyle]}
+          style={[wSt.findButton, findAnimStyle]}
           onPressIn={() => { findScale.value = withSpring(0.88, { damping: 20 }); }}
           onPressOut={() => { findScale.value = withSpring(1, { damping: 20 }); }}
           onPress={handleFind}
         >
-          <Text style={widgetStyles.findText}>FIND</Text>
+          <Text style={wSt.findText}>FIND</Text>
         </AnimatedPressable>
       </View>
 
       {/* ── Top 3 Results ── */}
-      <View style={widgetStyles.sectionHeader}>
+      <View style={wSt.sectionHeader}>
         <Ionicons name="location" size={10} color="#475569" />
-        <Text style={widgetStyles.sectionLabel}>
-          {searchQuery.trim() ? "SEARCH RESULTS" : "TOP 3 NEARBY"}
-        </Text>
+        <Text style={wSt.sectionLabel}>{searchQuery.trim() ? "SEARCH RESULTS" : "TOP 3 NEARBY"}</Text>
+        <Text style={wSt.sectionHint}>Tap to select</Text>
       </View>
 
       {displayed.length === 0 ? (
-        <View style={widgetStyles.emptyRow}>
+        <View style={wSt.emptyRow}>
           <Ionicons name="search-outline" size={16} color="#1E293B" />
-          <Text style={widgetStyles.emptyText}>
-            {searchQuery.trim()
-              ? `No results for "${searchQuery}"`
-              : "No nearby stores found"}
+          <Text style={wSt.emptyText}>
+            {searchQuery.trim() ? `No results for "${searchQuery}"` : "No nearby stores found"}
           </Text>
         </View>
       ) : (
-        <View style={{ paddingBottom: 4 }}>
+        <View style={{ paddingBottom: 6 }}>
           {displayed.map((store, i) => (
-            <StoreRow key={store.id} store={store} rank={i} />
+            <StoreRow
+              key={store.id}
+              store={store}
+              rank={i}
+              isSelected={store.id === selectedId}
+              onSelect={(s) => setSelectedId(s.id)}
+            />
           ))}
         </View>
       )}
 
       {/* Divider */}
-      <View style={widgetStyles.divider} />
+      <View style={wSt.divider} />
 
-      {/* ── Credit Card ── */}
-      <View style={widgetStyles.sectionHeader}>
+      {/* ── Credit Card — updates with selection ── */}
+      <View style={wSt.sectionHeader}>
         <MaterialCommunityIcons name="credit-card-outline" size={10} color="#475569" />
-        <Text style={widgetStyles.sectionLabel}>CREDIT CARD</Text>
+        <Text style={wSt.sectionLabel}>RECOMMENDED CARD</Text>
+        {selectedStore && (
+          <Text style={wSt.sectionHint} numberOfLines={1}>for {selectedStore.name}</Text>
+        )}
       </View>
-      <View style={{ paddingBottom: 12 }}>
-        <CreditCard />
+
+      <View style={{ paddingBottom: 14 }}>
+        <CreditCard store={selectedStore} />
       </View>
 
     </Animated.View>
   );
 }
 
-// ── Widget Styles ────────────────────────────────────────────────────────────
+// ── Widget container styles ──────────────────────────────────────────────────
 
-const widgetStyles = StyleSheet.create({
+const wSt = StyleSheet.create({
   container: {
     marginHorizontal: 16,
-    marginVertical: 12,
-    backgroundColor: "#0B0F19",
-    borderRadius: 24,
+    marginVertical: 10,
+    backgroundColor: "#0F172A",
+    borderRadius: 18,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    elevation: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.07)",
   },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 16,
+    gap: 8,
+    padding: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
@@ -459,64 +577,61 @@ const widgetStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1E293B",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.04)",
-    height: 48,
-    gap: 8,
-    paddingHorizontal: 4,
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.07)",
+    height: 38,
+    gap: 6,
   },
   input: {
     flex: 1,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
     color: "#CBD5E1",
     paddingVertical: Platform.OS === "ios" ? 0 : 2,
     height: "100%",
   },
   findButton: {
-    backgroundColor: "#7C3AED",
-    borderRadius: 14,
-    height: 48,
-    paddingHorizontal: 18,
+    backgroundColor: "#1A6FFF",
+    borderRadius: 9,
+    height: 38,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  findText: {
-    fontSize: 14,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-    letterSpacing: 0.8,
-  },
+  findText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff", letterSpacing: 0.6 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 6,
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: "Inter_600SemiBold",
-    color: "#64748B",
-    letterSpacing: 1.2,
+    color: "#475569",
+    letterSpacing: 1.1,
+  },
+  sectionHint: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "#334155",
+    marginLeft: 4,
+    flex: 1,
   },
   divider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    marginTop: 8,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    marginTop: 4,
   },
   emptyRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: "#475569",
-  },
+  emptyText: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#334155" },
 });
